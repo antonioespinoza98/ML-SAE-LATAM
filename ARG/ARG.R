@@ -192,21 +192,26 @@ fitBoostMERT_L2 <- boost_mem(
   maxIter_memboost = maxIter_memboost
 )
 
-
+fitBoostMERT_L2 <- readRDS("ARG/output/fit.rds")
 # Predicción
+
+dfsTest1 <- full_join(dfsTest1, statelevel_predictors_df,
+                             by = "dam")
+
+
 fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
                                         newdata = dfsTest1,
                                         n.trees = 100, allow.new.levels = TRUE)
 
 # Guardamos los resultados
 saveRDS(fitBoostMERT_L2, "ARG/output/fit.rds")
-saveRDS(fhat_Test1, "output/prediction.rds")
+saveRDS(fhat_Test1, "ARG/output/prediction.rds")
 
 # Bayesian Additive Regression Tree with random intercept -----------------
 
 fitBART <- stan4bart::stan4bart(
   formula = ingreso ~ (1 | var_ale) + bart(
-    F182013_stable_lights + X2016_crops.coverfraction + X2016_urban.coverfraction + X2016_gHM + accessibility + accessibility_walking_only + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + discapacidad1 + etnia1 + tiene_alcantarillado + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + hacinamiento + tasa_desocupacion
+    luces_nocturnas + cubrimiento_rural + cubrimiento_urbano + modificacion_humana + accesibilidad_hospitales + accesibilidad_hosp_caminado + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + etnia2 + etnia1 + NBI_Capacidad_subsistencia + NBI_sanitarias + NBI_asistencia_escolar + NBI_hacinamiento + NBI_vivienda + agua + alfabeta + rezago_escolar + piso_tierra + material_paredes + material_techo + tiene_alcantarillado + tiene_electricidad + tiene_gas + tasa_desocupacion
   ),
   verbose = -1,
   # suppress ALL output
@@ -221,30 +226,29 @@ fitBART <- stan4bart::stan4bart(
 
 # Lmer --------------------------------------------------------------------
 
-modelLMM <- ingreso ~ (1 | var_ale) + F182013_stable_lights  + X2016_crops.coverfraction + X2016_urban.coverfraction + X2016_gHM + accessibility + accessibility_walking_only + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + tiene_alcantarillado + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + hacinamiento + tasa_desocupacion
-
+modelLMM <- ingreso ~ (1 | var_ale) + luces_nocturnas + cubrimiento_rural + cubrimiento_urbano + modificacion_humana + accesibilidad_hospitales + accesibilidad_hosp_caminado + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + etnia2 + etnia1 + NBI_Capacidad_subsistencia + NBI_sanitarias + NBI_asistencia_escolar + NBI_hacinamiento + NBI_vivienda + agua + alfabeta + rezago_escolar + piso_tierra + material_paredes + material_techo + tiene_alcantarillado + tiene_electricidad + tiene_gas + tasa_desocupacion
 fitLMM <- lme4::lmer(modelLMM, weights = n, data = dfsTrain)
 
-# saveRDS(fitLMM, "output/fitLMM.rds")
+# saveRDS(fitLMM, "ARG/output/fitLMM.rds")
 
 # Varianza y el error -----------------------------------------------------
 
 rm(list = ls())
 
-fitBoostMERT_L2 <- readRDS("output/fit.rds")
-fitBART <- readRDS("output/fitBART.rds")
-fitLMM <- readRDS("output/fitLMM.rds")
+fitBoostMERT_L2 <- readRDS("ARG/output/fit.rds")
+# fitBART <- readRDS("output/fitBART.rds")
+fitLMM <- readRDS("ARG/output/fitLMM.rds")
 
 # Varibility betweeen planification regions (between-group variance)
 Dhat <- matrix(
   c(
     fitBoostMERT_L2$var_random_effects,
-    fitted(fitBART, type = "Sigma")$var_ale,
+    # fitted(fitBART, type = "Sigma")$var_ale,
     lme4::VarCorr(fitLMM)$var_ale[1]
   ),
-  nrow = 3,
+  nrow = 2,
   dimnames = list(
-    Model = c("BoostMERT_L2", "BART", "LMM"),
+    Model = c("BoostMERT_L2",  "LMM"),
     "Variance of random intercepts"
   )
   
@@ -254,12 +258,12 @@ Dhat <- matrix(
 ErrorVar <- matrix(
   c(
     fitBoostMERT_L2$errorVar,
-    fitted(fitBART, type = "sigma") ^ 2,
+    # fitted(fitBART, type = "sigma") ^ 2,
     sigma(fitLMM) ^ 2
   ),
-  nrow = 3,
+  nrow = 2,
   dimnames = list(
-    Model = c("BoostMERT_L2", "BART", "LMM"),
+    Model = c("BoostMERT_L2", "LMM"),
     "Variance of residual errors"
   )
 )
@@ -270,10 +274,10 @@ ErrorVar
 
 rm(list = ls())
 
-data <- readRDS("data/encuesta_df_agg.rds") |>
+data <- readRDS("ARG/2022/encuesta_mrp.rds") |>
   mutate_if(is.character, as.factor)
 
-censo <- readRDS("data/cens0.rds") |>
+censo <- readRDS("ARG/2022/censo_mrp.rds") |>
   select(dam) 
 
 data <- as.data.frame(data)
@@ -425,49 +429,5 @@ final |>
 # Mapas -------------------------------------------------------------------
 rm(list = ls())
 
-cantones <- st_read("geojson/cantones_ajustado_cr.geojson", quiet = TRUE)
-
-ingreso_cantonal <- readRDS("output/ingreso_cantonal.rds")
-
-mapa <- left_join(x = cantones,
-                  y = ingreso_cantonal,
-                  by = join_by(canton == canton))
-
-glimpse(mapa)
-
-mapa_plot <- ggplot(data = mapa, mapping = aes(fill = ingreso_medio)) +
-  geom_sf(color = "white") +
-  labs(fill = "Ingreso medio") +
-  scale_fill_viridis_c() +
-  theme_minimal()
-
-# ggsave(mapa_plot, filename = "ingreso/output/mapa_cantonal.png")
-
-
-# Mapa regiones de planificación ------------------------------------------
-
-regiones <- st_read("geojson/regiones_cr.geojson")
-ingreso_region <- readRDS("output/bootstrap_results.rds") |>
-  mutate(
-    region = recode(dam,
-                    "01" = "Central",
-                    "02" = "Chorotega",
-                    "03" = "Pacífico Central",
-                    "04" = "Brunca",
-                    "05" = "Huetar Caribe",
-                    "06" = "Huetar Norte"))
-
-
-mapping <- left_join(x = regiones,
-                     y = ingreso_region,
-                     by = join_by(region == region))
-
-region_plot <- ggplot(data = mapping, mapping = aes(fill = Media)) +
-  geom_sf(color = "white") +
-  labs(fill = "Ingreso medio") +
-  scale_fill_viridis_c() +
-  theme_minimal()
-
-ggsave(region_plot, filename = "ingreso/output/mapa_mideplan.png")
 
 

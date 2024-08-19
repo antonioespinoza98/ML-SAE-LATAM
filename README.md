@@ -34,4 +34,6 @@ La composición del archivo de `.R` cuenta con las siguientes secciones:
     - Se realiza el boostrap no paramétrico para la estimación de la incertidumbre.
 10. Mapas
     - Se realizan los mapas para la estimación del ingreso. 
+Ejemplo de mapa con el ingreso medio predicho con el modelo de XGBoost.
+    ![mapa](CRI/output/mapa.png)
 

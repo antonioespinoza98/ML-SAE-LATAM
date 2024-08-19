@@ -109,7 +109,7 @@ guacimo <- c("70601", "70602", "70603", "70604", "70605")
 # Extraemos el censo y de una vez creamos una columna nueva llamada 
 # canton, donde se crean los cantones en base a los distritos
 
-censo_mrp <- censo_mrp <- readRDS("data/cens0.rds") |>
+censo_mrp <- censo_mrp <- readRDS("CRI/2022/censo_mrp.rds") |>
   mutate(
     canton = 
       case_when(

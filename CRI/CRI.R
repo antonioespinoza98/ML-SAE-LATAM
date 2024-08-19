@@ -11,6 +11,7 @@ x <- c(
   'stan4bart',
   'dplyr',
   'XboostingMM',
+  'xgboost',
   'srvyr',
   'survey',
   'data.table',
@@ -89,12 +90,12 @@ minIter_memboost = 0
 # Creamos una variable conjunta que será tratada como variable aleatoria
 var_ale <- paste0(data$dam, data$area, data$sexo, data$anoest, data$edad)
 # Revisamos las combinaciones
-length(unique(var_ale)) # Contamos con 504 combinaciones de efectos Aleatorios.
+length(unique(var_ale)) 
 
 dfsTrain$var_ale <- var_ale
 
 #- specify model
-formula <- ingreso ~ F182013_stable_lights  + X2016_crops.coverfraction + X2016_urban.coverfraction + X2016_gHM + accessibility + accessibility_walking_only + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + discapacidad1 + etnia1 + tiene_alcantarillado + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + hacinamiento + tasa_desocupacion
+formula <- ingreso ~ luces_nocturnas + cubrimiento_rural + cubrimiento_urbano + modificacion_humana + accesibilidad_hospitales + accesibilidad_hosp_caminado + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + discapacidad1 + etnia1 + tiene_alcantarillado + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + hacinamiento + tasa_desocupacion
 random <- ~ 1 | var_ale
 
 # Preparaciones ============================================================
@@ -103,7 +104,7 @@ result <- NULL
 PredNames <- attr(stats::terms(formula), "term.labels")
 OutcomeName <-  all.vars(formula)[1]
 XTrain <- as.data.frame(dfsTrain[, PredNames, drop = FALSE])
-XTest1 <- as.data.frame(dfsTest1[, PredNames, drop = FALSE])
+# XTest1 <- as.data.frame(dfsTest1[, PredNames, drop = FALSE])
 YTrain <- as.matrix(dfsTrain[, OutcomeName, drop = FALSE])
 
 # Modelo ===================================================================
@@ -116,24 +117,95 @@ sqrterror <- function(preds, dtrain) {
   return(list(grad = grad, hess = hess))
 }
 
+# Validación cruzada ------------------------------------------------------
+
+# Aquí se determinan los parámetros para el modelo final
+
+sparse_matrix <- sparse.model.matrix(ingreso ~ .,
+                                     data = dfsTrain[,-c(1,2,3,4,5,6,7,8,9,41)])[, -1]
+
+y = dfsTrain$ingreso
+
+grid <- expand_grid(
+  eta = seq(0.30, 1, 0.10),
+  max_depth = seq(6, 10, 1),
+  # min_child_weight = seq(1, 20, 5),
+  # subsample = seq(0.5, 1, 0.5),
+  lambda = seq(1, 10, 1),
+  alpha = seq(0, 10, 1)
+)
+
+xgb_train_rmse <- numeric(nrow(grid))
+xgb_test_rmse <- numeric(nrow(grid))
+
+
+for(i in 1:nrow(grid)){
+  xgb_untuned = xgb.cv(
+    data = sparse_matrix,
+    label = y,
+    booster = "gbtree",
+    eta = grid$eta[i],
+    max_depth = grid$max_depth[i],
+    # min_child_weight = grid$min_child_weight[i],
+    # subsample = grid$subsample[i],
+    lambda = grid$lambda[i],
+    alpha = grid$alpha[i],
+    objective = sqrterror,
+    # eval_metric = "rmse",
+    nrounds = 1000,
+    early_stopping_rounds = 3, # training with a validation set will stop if the performance does not improve for k rounds (3)
+    nfold = 5
+  )
+  
+  xgb_train_rmse[i] <-
+    xgb_untuned$evaluation_log$train_rmse_mean[xgb_untuned$best_iteration]
+  xgb_test_rmse[i] <-
+    xgb_untuned$evaluation_log$test_rmse_mean[xgb_untuned$best_iteration]
+  
+  cat(i, "\n")
+}
+
+xgb_train_rmse <- xgb_train_rmse |> 
+  tibble() |> 
+  mutate(simulacion = seq(1:4400))
+
+xgb_test_rmse <- xgb_test_rmse |> 
+  tibble() |> 
+  mutate(simulacion = seq(1:4400))
+
+#Guardamos las iteraciones para el primer modelo de la validación cruzada
+
+# saveRDS(xgb_train_rmse, file ="CRI/output/xgb_train_rmse_all_tree.rds")
+# saveRDS(xgb_test_rmse, file = "CRI/output/xgb_test_rmse_all_tree.rds")
+
+xgb_train_rmse |> ggplot(aes(x = simulacion, y = xgb_train_rmse)) + 
+  geom_line() 
+
+# Mejores parámetros
+grid[which.min(xgb_train_rmse$xgb_train_rmse), ] 
+
+
+
 # Modelo
 fitBoostMERT_L2 <- boost_mem(
   formula,
   data = dfsTrain,
   random = random,
-  shrinkage = 1,
-  interaction.depth = 6,
+  shrinkage = 0.5,
+  interaction.depth = 8,
   n.trees = 100,
   loss = sqrterror,
   minsplit = 1,
   subsample = 1,
-  lambda = 5,
-  alpha = 10,
+  lambda = 8,
+  alpha = 2,
   verbose_memboost = verbose_memboost,
   minIter_memboost = minIter_memboost,
   maxIter_memboost = maxIter_memboost
 )
 
+dfsTest1 <- full_join(dfsTest1, statelevel_predictors_df,
+                             by = "dam")
 
 # Predicción
 fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
@@ -141,14 +213,14 @@ fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
                                         n.trees = 100)
 
 # Guardamos los resultados
-# saveRDS(fitBoostMERT_L2, "output/fit.rds")
-# saveRDS(fhat_Test1, "output/prediction.rds")
+# saveRDS(fitBoostMERT_L2, "CRI/output/fit.rds")
+# saveRDS(fhat_Test1, "CRI/output/prediction.rds")
 
 # Bayesian Additive Regression Tree with random intercept -----------------
 
 fitBART <- stan4bart::stan4bart(
   formula = ingreso ~ (1 | var_ale) + bart(
-    F182013_stable_lights + X2016_crops.coverfraction + X2016_urban.coverfraction + X2016_gHM + accessibility + accessibility_walking_only + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + discapacidad1 + etnia1 + tiene_alcantarillado + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + hacinamiento + tasa_desocupacion
+    luces_nocturnas + cubrimiento_rural + cubrimiento_urbano + modificacion_humana + accesibilidad_hospitales + accesibilidad_hosp_caminado + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + discapacidad1 + etnia1 + tiene_alcantarillado + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + hacinamiento + tasa_desocupacion
   ),
   verbose = -1,
   # suppress ALL output
@@ -163,7 +235,7 @@ fitBART <- stan4bart::stan4bart(
 
 # Lmer --------------------------------------------------------------------
 
-modelLMM <- ingreso ~ (1 | var_ale) + F182013_stable_lights  + X2016_crops.coverfraction + X2016_urban.coverfraction + X2016_gHM + accessibility + accessibility_walking_only + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + tiene_alcantarillado + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + hacinamiento + tasa_desocupacion
+modelLMM <- ingreso ~ (1 | var_ale) + luces_nocturnas + cubrimiento_rural + cubrimiento_urbano + modificacion_humana + accesibilidad_hospitales + accesibilidad_hosp_caminado + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + discapacidad1 + etnia1 + tiene_alcantarillado + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + hacinamiento + tasa_desocupacion
 
 fitLMM <- lme4::lmer(modelLMM, weights = n, data = dfsTrain)
 
@@ -173,20 +245,20 @@ fitLMM <- lme4::lmer(modelLMM, weights = n, data = dfsTrain)
 
 rm(list = ls())
 
-fitBoostMERT_L2 <- readRDS("output/fit.rds")
-fitBART <- readRDS("output/fitBART.rds")
-fitLMM <- readRDS("output/fitLMM.rds")
+fitBoostMERT_L2 <- readRDS("CRI/output/fit.rds")
+# fitBART <- readRDS("output/fitBART.rds")
+fitLMM <- readRDS("CRI/output/fitLMM.rds")
 
 # Varibility betweeen planification regions (between-group variance)
 Dhat <- matrix(
   c(
     fitBoostMERT_L2$var_random_effects,
-    fitted(fitBART, type = "Sigma")$var_ale,
+    # fitted(fitBART, type = "Sigma")$var_ale,
     lme4::VarCorr(fitLMM)$var_ale[1]
   ),
-  nrow = 3,
+  nrow = 2,
   dimnames = list(
-    Model = c("BoostMERT_L2", "BART", "LMM"),
+    Model = c("BoostMERT_L2", "LMM"),
     "Variance of random intercepts"
   )
   
@@ -196,12 +268,12 @@ Dhat <- matrix(
 ErrorVar <- matrix(
   c(
     fitBoostMERT_L2$errorVar,
-    fitted(fitBART, type = "sigma") ^ 2,
+    # fitted(fitBART, type = "sigma") ^ 2,
     sigma(fitLMM) ^ 2
   ),
-  nrow = 3,
+  nrow = 2,
   dimnames = list(
-    Model = c("BoostMERT_L2", "BART", "LMM"),
+    Model = c("BoostMERT_L2", "LMM"),
     "Variance of residual errors"
   )
 )
@@ -221,14 +293,14 @@ censo <- readRDS("data/cens0.rds") |>
 data <- as.data.frame(data)
 censo <- as.data.frame(censo)
 # Leemos la predicción
-f <- readRDS("output/prediction.rds")
+f <- readRDS("CRI/output/prediction.rds")
 length(f)
 
 # pegamos la predicción al censo
 censo$f <- f
 
 # 2. Efectos aleatorios
-fit <- readRDS("output/fit.rds")
+fit <- readRDS("CRI/output/fit.rds")
 randomEffects <- fit$raneffs
 
 # 3. Errores
@@ -289,13 +361,13 @@ mean_df <- PBS_long |>
   summarise(media = mean(value, na.rm = TRUE)) |>
   pivot_wider(names_from = PB, values_from = media)
 
-# saveRDS(PBS_long, "output/PBS_long.rds")
-# saveRDS(mean_df, "output/mean_df.rds")
+# saveRDS(PBS_long, "CRI/output/PBS_long.rds")
+# saveRDS(mean_df, "CRI/output/mean_df.rds")
 
 # Cálculo de medias para todas las PB -------------------------------------
 
-PBS_long <- readRDS("output/PBS_long.rds")
-mean_df <- readRDS("output/mean_df.rds")
+PBS_long <- readRDS("CRI/output/PBS_long.rds")
+mean_df <- readRDS("CRI/output/mean_df.rds")
 
 medias <- numeric(6)
 varianzas <- numeric(6)
@@ -346,22 +418,22 @@ IC_df <- mean_df |>
 final <- resultado |>
   left_join(IC_df, by = "dam")
 
-# saveRDS(final, "output/bootstrap_results.rds")
+# saveRDS(final, "CRI/output/bootstrap_results.rds")
 
-final <- readRDS("output/bootstrap_results.rds")
+final <- readRDS("CRI/output/bootstrap_results.rds")
 
-margin <- (final$upper - final$lower) * 2
-
-final$AdjustedLower <- final$lower - margin
-final$AdjustedUpper <- final$upper + margin
-
+# margin <- (final$upper - final$lower) * 2
+# 
+# final$AdjustedLower <- final$lower - margin
+# final$AdjustedUpper <- final$upper + margin
+# 
 
 final |>
   ggplot(aes(x = dam, y = Media)) + geom_point(col = "green") +
   labs(x = "Región de planificación económica", y = "Ingreso") +
   # ylim(150000,450000) +
-  geom_errorbar(data = final, aes(x = dam, ymin = AdjustedLower,
-                                  ymax = AdjustedUpper)) +
+  geom_errorbar(data = final, aes(x = dam, ymin = lower,
+                                  ymax = upper)) +
   theme_minimal()
 
 # Mapas -------------------------------------------------------------------
@@ -388,8 +460,8 @@ mapa_plot <- ggplot(data = mapa, mapping = aes(fill = ingreso_medio)) +
 
 # Mapa regiones de planificación ------------------------------------------
 
-regiones <- st_read("geojson/regiones_cr.geojson")
-ingreso_region <- readRDS("output/bootstrap_results.rds") |>
+regiones <- st_read("CRI/geojson/regiones_cr.geojson")
+ingreso_region <- readRDS("CRI/output/bootstrap_results.rds") |>
   mutate(
     region = recode(dam,
                     "01" = "Central",
@@ -410,6 +482,6 @@ region_plot <- ggplot(data = mapping, mapping = aes(fill = Media)) +
   scale_fill_viridis_c() +
   theme_minimal()
 
-ggsave(region_plot, filename = "ingreso/output/mapa_mideplan.png")
+ggsave(region_plot, filename = "CRI/output/mapa.png")
 
 
