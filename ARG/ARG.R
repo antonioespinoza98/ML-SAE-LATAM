@@ -28,7 +28,7 @@ lapply(x, require, character.only = TRUE)
 
 rm(list = ls())
 
-# Utilizamos la encuesta y el censo de Costa Rica 2011
+
 encuesta_mrp <- readRDS("ARG/2022/encuesta_mrp.rds")
 statelevel_predictors_df <- readRDS("ARG/2022/statelevel_predictors_df.rds")
 
@@ -164,8 +164,8 @@ xgb_test_rmse <- xgb_test_rmse |>
 
 #Guardamos las iteraciones para el primer modelo de la validación cruzada
 
-saveRDS(xgb_train_rmse, file ="ARG/output/xgb_train_rmse_all_tree.rds")
-saveRDS(xgb_test_rmse, file = "ARG/output/xgb_test_rmse_all_tree.rds")
+# saveRDS(xgb_train_rmse, file ="ARG/output/xgb_train_rmse_all_tree.rds")
+# saveRDS(xgb_test_rmse, file = "ARG/output/xgb_test_rmse_all_tree.rds")
 
 xgb_train_rmse |> ggplot(aes(x = simulacion, y = xgb_train_rmse)) + 
   geom_line() 
@@ -173,7 +173,6 @@ xgb_train_rmse |> ggplot(aes(x = simulacion, y = xgb_train_rmse)) +
 # Mejores parámetros
 grid[which.min(xgb_train_rmse$xgb_train_rmse), ] 
 
-# =========================================================================
 
 # Modelo
 fitBoostMERT_L2 <- boost_mem(
@@ -337,7 +336,7 @@ PBS <- as.data.frame(PBS)
 PBS$dam <- censo$dam
 
 
-# Cálculo de medias para cada dominio -------------------------------------
+# Cálculo de medias para cada dominio 
 PBS_long <- PBS |>
   pivot_longer(cols = starts_with("PB"),
                names_to = "PB",
@@ -351,7 +350,7 @@ mean_df <- PBS_long |>
 # saveRDS(PBS_long, "output/PBS_long.rds")
 # saveRDS(mean_df, "output/mean_df.rds")
 
-# Cálculo de medias para todas las PB -------------------------------------
+# Cálculo de medias para todas las PB 
 
 PBS_long <- readRDS("output/PBS_long.rds")
 mean_df <- readRDS("output/mean_df.rds")
@@ -378,7 +377,7 @@ resultado <- as_tibble(resultado)
 resultado$dam <- c("01","02","03","04","05","06")
 
 
-# MSE ---------------------------------------------------------------------
+# MSE 
 
 est_puntual <- fhat_Test1
 
