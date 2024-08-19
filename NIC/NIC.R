@@ -87,6 +87,9 @@ random <- ~ 1 | var_ale
 
 # Preparaciones ============================================================
 
+sum(is.na(dfsTrain))
+
+
 result <- NULL
 PredNames <- attr(stats::terms(formula), "term.labels")
 OutcomeName <-  all.vars(formula)[1]

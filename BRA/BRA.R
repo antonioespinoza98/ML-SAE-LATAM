@@ -164,8 +164,8 @@ xgb_test_rmse <- xgb_test_rmse |>
 
 #Guardamos las iteraciones para el primer modelo de la validación cruzada
 
-saveRDS(xgb_train_rmse, file ="ingreso/output/xgb_train_rmse_all_tree.rds")
-saveRDS(xgb_test_rmse, file = "ingreso/output/xgb_test_rmse_all_tree.rds")
+saveRDS(xgb_train_rmse, file ="BRA/output/xgb_train_rmse_all_tree.rds")
+saveRDS(xgb_test_rmse, file = "BRA/output/xgb_test_rmse_all_tree.rds")
 
 xgb_train_rmse |> ggplot(aes(x = simulacion, y = xgb_train_rmse)) + 
   geom_line() 
@@ -200,7 +200,7 @@ fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
                                         n.trees = 100, allow.new.levels = TRUE)
 
 # Guardamos los resultados
-# saveRDS(fitBoostMERT_L2, "output/fit.rds")
+saveRDS(fitBoostMERT_L2, "BRA/output/fit.rds")
 # saveRDS(fhat_Test1, "output/prediction.rds")
 
 # Bayesian Additive Regression Tree with random intercept -----------------

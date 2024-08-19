@@ -83,7 +83,7 @@ length(unique(var_ale)) # Contamos con 504 combinaciones de efectos Aleatorios.
 dfsTrain$var_ale <- var_ale
 
 #- specify model
-formula <- ingreso ~ luces_nocturnas + cubrimiento_rural + cubrimiento_urbano + modificacion_humana + accesibilidad_hospitales + accesibilidad_hosp_caminado + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + etnia2 + etnia1 + NBI_Capacidad_subsistencia + NBI_sanitarias + NBI_asistencia_escolar + NBI_hacinamiento + NBI_vivienda + agua + alfabeta + rezago_escolar + piso_tierra + material_paredes + material_techo + tiene_alcantarillado + tiene_electricidad + tiene_gas + tasa_desocupacion
+formula <- ingreso ~ luces_nocturnas + cubrimiento_rural + cubrimiento_urbano + modificacion_humana + accesibilidad_hospitales + accesibilidad_hosp_caminado + area1 + sexo2 + edad2 + edad3 + edad4 + edad5 + anoest2 + anoest3 + anoest4 + tiene_alcantarillado + tiene_sanitario + tiene_electricidad + tiene_acueducto + tiene_gas + eliminar_basura + tiene_internet + piso_tierra + material_paredes + material_techo + rezago_escolar + alfabeta + tasa_desocupacion
 random <- ~ 1 | var_ale
 
 # Preparaciones ============================================================
@@ -111,7 +111,7 @@ sqrterror <- function(preds, dtrain) {
 # Aquí se determinan los parámetros para el modelo final
 
 sparse_matrix <- sparse.model.matrix(ingreso ~ .,
-                                     data = dfsTrain[,-c(1,2,3,4,5,6,7,40)])[, -1]
+                                     data = dfsTrain[,-c(1,2,3,4,5,6,7,8,38)])[, -1]
 
 y = encuesta_df_agg$ingreso
 
@@ -164,8 +164,8 @@ xgb_test_rmse <- xgb_test_rmse |>
 
 #Guardamos las iteraciones para el primer modelo de la validación cruzada
 
-saveRDS(xgb_train_rmse, file ="ingreso/output/xgb_train_rmse_all_tree.rds")
-saveRDS(xgb_test_rmse, file = "ingreso/output/xgb_test_rmse_all_tree.rds")
+saveRDS(xgb_train_rmse, file ="PRY/output/xgb_train_rmse_all_tree.rds")
+saveRDS(xgb_test_rmse, file = "PRY/output/xgb_test_rmse_all_tree.rds")
 
 xgb_train_rmse |> ggplot(aes(x = simulacion, y = xgb_train_rmse)) + 
   geom_line() 
@@ -180,14 +180,14 @@ fitBoostMERT_L2 <- boost_mem(
   formula,
   data = dfsTrain,
   random = random,
-  shrinkage = 1,
-  interaction.depth = 6,
+  shrinkage = 0.8,
+  interaction.depth = 9,
   n.trees = 100,
   loss = sqrterror,
   minsplit = 1,
   subsample = 1,
-  lambda = 5,
-  alpha = 10,
+  lambda = 9,
+  alpha = 0,
   verbose_memboost = verbose_memboost,
   minIter_memboost = minIter_memboost,
   maxIter_memboost = maxIter_memboost
@@ -200,7 +200,7 @@ fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
                                         n.trees = 100, allow.new.levels = TRUE)
 
 # Guardamos los resultados
-# saveRDS(fitBoostMERT_L2, "output/fit.rds")
+saveRDS(fitBoostMERT_L2, "PRY/output/fit.rds")
 # saveRDS(fhat_Test1, "output/prediction.rds")
 
 # Bayesian Additive Regression Tree with random intercept -----------------

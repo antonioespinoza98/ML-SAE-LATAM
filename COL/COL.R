@@ -110,14 +110,10 @@ sqrterror <- function(preds, dtrain) {
 
 # Aquí se determinan los parámetros para el modelo final
 
-ajuste = dfsTrain[,-c(1,2,3,4,5,6,7,8,40)]
-
-ajuste = na.omit(dfsTrain)
-
 sparse_matrix <- sparse.model.matrix(ingreso ~ .,
-                                     data = ajuste)[, -1]
+                                     data = dfsTrain[,-c(1,2,3,4,5,6,7,8,40)])[, -1]
 
-y = ajuste$ingreso
+y = dfsTrain$ingreso
 
 grid <- expand_grid(
   eta = seq(0.30, 1, 0.10),
@@ -160,16 +156,16 @@ for(i in 1:nrow(grid)){
 
 xgb_train_rmse <- xgb_train_rmse |> 
   tibble() |> 
-  mutate(simulacion = seq(1:35200))
+  mutate(simulacion = seq(1:4400))
 
 xgb_test_rmse <- xgb_test_rmse |> 
   tibble() |> 
-  mutate(simulacion = seq(1:35200))
+  mutate(simulacion = seq(1:4400))
 
 #Guardamos las iteraciones para el primer modelo de la validación cruzada
 
-saveRDS(xgb_train_rmse, file ="ingreso/output/xgb_train_rmse_all_tree.rds")
-saveRDS(xgb_test_rmse, file = "ingreso/output/xgb_test_rmse_all_tree.rds")
+saveRDS(xgb_train_rmse, file ="COL/output/xgb_train_rmse_all_tree.rds")
+saveRDS(xgb_test_rmse, file = "COL/output/xgb_test_rmse_all_tree.rds")
 
 xgb_train_rmse |> ggplot(aes(x = simulacion, y = xgb_train_rmse)) + 
   geom_line() 
@@ -184,14 +180,14 @@ fitBoostMERT_L2 <- boost_mem(
   formula,
   data = dfsTrain,
   random = random,
-  shrinkage = 1,
-  interaction.depth = 6,
+  shrinkage = 0.6,
+  interaction.depth = 8,
   n.trees = 100,
   loss = sqrterror,
   minsplit = 1,
   subsample = 1,
-  lambda = 5,
-  alpha = 10,
+  lambda = 1,
+  alpha = 4,
   verbose_memboost = verbose_memboost,
   minIter_memboost = minIter_memboost,
   maxIter_memboost = maxIter_memboost
@@ -204,7 +200,7 @@ fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
                                         n.trees = 100, allow.new.levels = TRUE)
 
 # Guardamos los resultados
-# saveRDS(fitBoostMERT_L2, "output/fit.rds")
+saveRDS(fitBoostMERT_L2, "COL/output/fit.rds")
 # saveRDS(fhat_Test1, "output/prediction.rds")
 
 # Bayesian Additive Regression Tree with random intercept -----------------
