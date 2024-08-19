@@ -199,7 +199,7 @@ fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
                                         n.trees = 100, allow.new.levels = TRUE)
 
 # Guardamos los resultados
-# saveRDS(fitBoostMERT_L2, "output/fit.rds")
+saveRDS(fitBoostMERT_L2, "ECU/output/fit.rds")
 # saveRDS(fhat_Test1, "output/prediction.rds")
 
 # Bayesian Additive Regression Tree with random intercept -----------------
