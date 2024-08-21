@@ -193,6 +193,8 @@ fitBoostMERT_L2 <- boost_mem(
   maxIter_memboost = maxIter_memboost
 )
 
+dfsTest1 <- full_join(dfsTest1, statelevel_predictors_df,
+                      by = "dam")
 
 # Predicción
 fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
@@ -200,8 +202,8 @@ fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
                                         n.trees = 100, allow.new.levels = TRUE)
 
 # Guardamos los resultados
-saveRDS(fitBoostMERT_L2, "PRY/output/fit.rds")
-# saveRDS(fhat_Test1, "output/prediction.rds")
+# saveRDS(fitBoostMERT_L2, "PRY/output/fit.rds")
+# saveRDS(fhat_Test1, "PRY/output/prediction.rds")
 
 # Bayesian Additive Regression Tree with random intercept -----------------
 
@@ -271,23 +273,19 @@ ErrorVar
 
 rm(list = ls())
 
-data <- readRDS("data/encuesta_df_agg.rds") |>
-  mutate_if(is.character, as.factor)
-
-censo <- readRDS("data/cens0.rds") |>
+censo <- readRDS("PRY/2022/censo_mrp.rds") |>
   select(dam) 
 
-data <- as.data.frame(data)
 censo <- as.data.frame(censo)
 # Leemos la predicción
-f <- readRDS("output/prediction.rds")
+f <- readRDS("PRY/output/prediction.rds")
 length(f)
 
 # pegamos la predicción al censo
 censo$f <- f
 
 # 2. Efectos aleatorios
-fit <- readRDS("output/fit.rds")
+fit <- readRDS("PRY/output/fit.rds")
 randomEffects <- fit$raneffs
 
 # 3. Errores

@@ -192,6 +192,8 @@ fitBoostMERT_L2 <- boost_mem(
   maxIter_memboost = maxIter_memboost
 )
 
+dfsTest1 <- full_join(dfsTest1, statelevel_predictors_df,
+                      by = "dam")
 
 # Predicción
 fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
@@ -199,8 +201,8 @@ fhat_Test1 <- XboostingMM:::predict.xgb(fitBoostMERT_L2$boosting_ensemble,
                                         n.trees = 100, allow.new.levels = TRUE)
 
 # Guardamos los resultados
-saveRDS(fitBoostMERT_L2, "SLV/output/fit.rds")
-# saveRDS(fhat_Test1, "output/prediction.rds")
+# saveRDS(fitBoostMERT_L2, "SLV/output/fit.rds")
+# saveRDS(fhat_Test1, "SLV/output/prediction.rds")
 
 # Bayesian Additive Regression Tree with random intercept -----------------
 
@@ -270,23 +272,19 @@ ErrorVar
 
 rm(list = ls())
 
-data <- readRDS("data/encuesta_df_agg.rds") |>
-  mutate_if(is.character, as.factor)
-
-censo <- readRDS("data/cens0.rds") |>
+censo <- readRDS("SLV/2022/censo_mrp.rds") |>
   select(dam) 
 
-data <- as.data.frame(data)
 censo <- as.data.frame(censo)
 # Leemos la predicción
-f <- readRDS("output/prediction.rds")
+f <- readRDS("SLV/output/prediction.rds")
 length(f)
 
 # pegamos la predicción al censo
 censo$f <- f
 
 # 2. Efectos aleatorios
-fit <- readRDS("output/fit.rds")
+fit <- readRDS("SLV/output/fit.rds")
 randomEffects <- fit$raneffs
 
 # 3. Errores
@@ -327,7 +325,7 @@ while (count <= limit) {
   
 }
 
-# saveRDS(PBS, "output/PBS.rds")
+# saveRDS(PBS, "SLV/output/PBS.rds")
 
 colnames(PBS) <- paste0("PB", 1:limit)
 
@@ -347,34 +345,34 @@ mean_df <- PBS_long |>
   summarise(media = mean(value, na.rm = TRUE)) |>
   pivot_wider(names_from = PB, values_from = media)
 
-# saveRDS(PBS_long, "output/PBS_long.rds")
-# saveRDS(mean_df, "output/mean_df.rds")
+# saveRDS(PBS_long, "SLV/output/PBS_long.rds")
+# saveRDS(mean_df, "SLV/output/mean_df.rds")
 
 # Cálculo de medias para todas las PB -------------------------------------
 
-PBS_long <- readRDS("output/PBS_long.rds")
-mean_df <- readRDS("output/mean_df.rds")
+PBS_long <- readRDS("SLV/output/PBS_long.rds")
+mean_df <- readRDS("SLVoutput/mean_df.rds")
 
-medias <- numeric(6)
-varianzas <- numeric(6)
+medias <- numeric(length(unique(mean_df$dam)))
+varianzas <- numeric(length(unique(mean_df$dam)))
 
-for (i in 1:6) {
+for (i in 1:14) {
   medias[i] <- mean(as.numeric(mean_df[i, -1]), na.rm = TRUE)
   varianzas[i] <- var(as.numeric(mean_df[i, -1]), na.rm = TRUE)
 }
 
 resultado <- matrix(
   c(medias, varianzas),
-  nrow = 6,
+  nrow = 14,
   ncol = 2,
   dimnames = list(
-    "Dam" = c("01", "02", "03", "04", "05", "06"),
+    "Dam" = unique(mean_df$dam),
     "Estimación" = c("Media", "Varianza")
   )
 )
 
 resultado <- as_tibble(resultado)
-resultado$dam <- c("01","02","03","04","05","06")
+resultado$dam <- unique(mean_df$dam)
 
 
 # MSE ---------------------------------------------------------------------
@@ -404,70 +402,19 @@ IC_df <- mean_df |>
 final <- resultado |>
   left_join(IC_df, by = "dam")
 
-# saveRDS(final, "output/bootstrap_results.rds")
+# saveRDS(final, "SLV/output/bootstrap_results.rds")
 
-final <- readRDS("output/bootstrap_results.rds")
+final <- readRDS("SLV/output/bootstrap_results.rds")
 
-margin <- (final$upper - final$lower) * 2
-
-final$AdjustedLower <- final$lower - margin
-final$AdjustedUpper <- final$upper + margin
-
-
-final |>
+boot <- final |>
   ggplot(aes(x = dam, y = Media)) + geom_point(col = "green") +
   labs(x = "Región de planificación económica", y = "Ingreso") +
   # ylim(150000,450000) +
-  geom_errorbar(data = final, aes(x = dam, ymin = AdjustedLower,
-                                  ymax = AdjustedUpper)) +
+  geom_errorbar(data = final, aes(x = dam, ymin = lower,
+                                  ymax = upper)) +
   theme_minimal()
 
+ggsave(boot, filename = "SLV/output/boot.jpg")
 # Mapas -------------------------------------------------------------------
 rm(list = ls())
-
-cantones <- st_read("geojson/cantones_ajustado_cr.geojson", quiet = TRUE)
-
-ingreso_cantonal <- readRDS("output/ingreso_cantonal.rds")
-
-mapa <- left_join(x = cantones,
-                  y = ingreso_cantonal,
-                  by = join_by(canton == canton))
-
-glimpse(mapa)
-
-mapa_plot <- ggplot(data = mapa, mapping = aes(fill = ingreso_medio)) +
-  geom_sf(color = "white") +
-  labs(fill = "Ingreso medio") +
-  scale_fill_viridis_c() +
-  theme_minimal()
-
-# ggsave(mapa_plot, filename = "ingreso/output/mapa_cantonal.png")
-
-
-# Mapa regiones de planificación ------------------------------------------
-
-regiones <- st_read("geojson/regiones_cr.geojson")
-ingreso_region <- readRDS("output/bootstrap_results.rds") |>
-  mutate(
-    region = recode(dam,
-                    "01" = "Central",
-                    "02" = "Chorotega",
-                    "03" = "Pacífico Central",
-                    "04" = "Brunca",
-                    "05" = "Huetar Caribe",
-                    "06" = "Huetar Norte"))
-
-
-mapping <- left_join(x = regiones,
-                     y = ingreso_region,
-                     by = join_by(region == region))
-
-region_plot <- ggplot(data = mapping, mapping = aes(fill = Media)) +
-  geom_sf(color = "white") +
-  labs(fill = "Ingreso medio") +
-  scale_fill_viridis_c() +
-  theme_minimal()
-
-ggsave(region_plot, filename = "ingreso/output/mapa_mideplan.png")
-
 

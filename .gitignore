@@ -48,8 +48,8 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
-CRI/output/PBS_long.rds
-CRI/output/PBS.rds
-CRI/output/fitBART.rds
+**/PBS_long.rds
+**/output/PBS.rds
+**/output/fitBART.rds
 
 

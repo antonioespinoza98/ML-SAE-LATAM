@@ -283,14 +283,14 @@ censo <- readRDS("ARG/2022/censo_mrp.rds") |>
 data <- as.data.frame(data)
 censo <- as.data.frame(censo)
 # Leemos la predicción
-f <- readRDS("output/prediction.rds")
+f <- readRDS("ARG/output/prediction.rds")
 length(f)
 
 # pegamos la predicción al censo
 censo$f <- f
 
 # 2. Efectos aleatorios
-fit <- readRDS("output/fit.rds")
+fit <- readRDS("ARG/output/fit.rds")
 randomEffects <- fit$raneffs
 
 # 3. Errores
@@ -315,7 +315,7 @@ while (count <= limit) {
   
   for (dom in dominio) {
     # Primero verificamos que en el ciclo identificamos el dominio en el censo
-    # Del cual deberia devolver las 1437686 observaciones con los dominios
+    # Del cual deberia devolver el total de observaciones con los dominios
     # identificados.
     
     # Hay que obtener el vector F filtrado para cada dominio
@@ -331,7 +331,7 @@ while (count <= limit) {
   
 }
 
-# saveRDS(PBS, "output/PBS.rds")
+# saveRDS(PBS, "ARG/output/PBS.rds")
 
 colnames(PBS) <- paste0("PB", 1:limit)
 
@@ -351,36 +351,38 @@ mean_df <- PBS_long |>
   summarise(media = mean(value, na.rm = TRUE)) |>
   pivot_wider(names_from = PB, values_from = media)
 
-# saveRDS(PBS_long, "output/PBS_long.rds")
-# saveRDS(mean_df, "output/mean_df.rds")
+# saveRDS(PBS_long, "ARG/output/PBS_long.rds")
+# saveRDS(mean_df, "ARG/output/mean_df.rds")
 
 # Cálculo de medias para todas las PB 
 
-PBS_long <- readRDS("output/PBS_long.rds")
-mean_df <- readRDS("output/mean_df.rds")
+PBS_long <- readRDS("ARG/output/PBS_long.rds")
+mean_df <- readRDS("ARG/output/mean_df.rds")
 
-medias <- numeric(6)
-varianzas <- numeric(6)
+medias <- numeric(24)
+varianzas <- numeric(24)
 
-for (i in 1:6) {
+for (i in 1:24) {
   medias[i] <- mean(as.numeric(mean_df[i, -1]), na.rm = TRUE)
   varianzas[i] <- var(as.numeric(mean_df[i, -1]), na.rm = TRUE)
 }
 
 resultado <- matrix(
   c(medias, varianzas),
-  nrow = 6,
+  nrow = 24,
   ncol = 2,
   dimnames = list(
-    "Dam" = c("01", "02", "03", "04", "05", "06"),
+    "Dam" = c("02","06","10","14","18","22","26","30","34","38",
+              "42","46","50","54","58","62","66","70","74","78",
+              "82","86","90","94"),
     "Estimación" = c("Media", "Varianza")
   )
 )
 
 resultado <- as_tibble(resultado)
-resultado$dam <- c("01","02","03","04","05","06")
-
-
+resultado$dam <- c("02","06","10","14","18","22","26","30","34","38",
+                   "42","46","50","54","58","62","66","70","74","78",
+                   "82","86","90","94")
 # MSE 
 
 est_puntual <- fhat_Test1
@@ -408,23 +410,21 @@ IC_df <- mean_df |>
 final <- resultado |>
   left_join(IC_df, by = "dam")
 
-# saveRDS(final, "output/bootstrap_results.rds")
+# saveRDS(final, "ARG/output/bootstrap_results.rds")
 
 final <- readRDS("output/bootstrap_results.rds")
 
-margin <- (final$upper - final$lower) * 2
-
-final$AdjustedLower <- final$lower - margin
-final$AdjustedUpper <- final$upper + margin
 
 
-final |>
+boot <- final |>
   ggplot(aes(x = dam, y = Media)) + geom_point(col = "green") +
-  labs(x = "Región de planificación económica", y = "Ingreso") +
+  labs(x = "Dam", y = "Ingreso") +
   # ylim(150000,450000) +
-  geom_errorbar(data = final, aes(x = dam, ymin = AdjustedLower,
-                                  ymax = AdjustedUpper)) +
+  geom_errorbar(data = final, aes(x = dam, ymin = lower,
+                                  ymax = upper)) +
   theme_minimal()
+
+ggsave(boot, filename = "ARG/output/boot.jpg")
 
 # Mapas -------------------------------------------------------------------
 rm(list = ls())
